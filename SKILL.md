@@ -14,10 +14,10 @@ description: 通过 AT-SPI 可访问性树操作 Linux 图形界面应用（无�
 - 系统包：`python3-gi`、`gir1.2-atspi-2.0`、`at-spi2-core`（均已装）
 - 必须用 **/usr/bin/python3**（venv 无 gi）
 - Electron 应用若 at-spi 树为空，需以 `--force-renderer-accessibility` 重启
-- 环境变量从用户图形会话继承（见 scripts/env.sh）
+- 环境变量从用户图形会话继承（见 scripts/env.py）
 
 ## 使用步骤
-1. `bash scripts/env.sh` 导出正确 DISPLAY/XAUTHORITY/DBUS
+1. `bash scripts/env.py` 导出正确 DISPLAY/XAUTHORITY/DBUS
 2. `python3 scripts/atspi.py apps` — 列出桌面应用找目标
 3. `python3 scripts/atspi.py tree <app名>` — 读控件树
 4. `python3 scripts/atspi.py click <app名> <按钮名>` — 点击

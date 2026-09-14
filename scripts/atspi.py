@@ -69,7 +69,7 @@ def main():
     elif cmd == "click":
         app = find_app(sys.argv[2])
         role = sys.argv[4] if len(sys.argv) > 4 else None
-        hits = find_all(app, sys.argv[3], role)
+        hits = find(app, sys.argv[3], role)
         if hits:
             hits[0].get_action().do_action(0)
             print(f"已点击: {sys.argv[3]}")
@@ -77,7 +77,7 @@ def main():
             print(f"未找到: {sys.argv[3]}")
     elif cmd == "type":
         app = find_app(sys.argv[2])
-        hits = find_all(app, sys.argv[3])
+        hits = find(app, sys.argv[3])
         if hits:
             # 尝试 setTextContents（若支持）
             try:
