@@ -1,6 +1,6 @@
 ---
 name: gui-app-operator
-description: 通过 AT-SPI 可访问性树操作 Linux 图形界面应用（无需视觉/OCR）。枚举桌面应用、读取控件树（按钮/文本框/菜单）、点击按钮、输入文字、激活窗口。适用于 xrdp/Xorg 会话中的 Electron 等 GUI 应用（如 ZCode）。
+description: 通过 AT-SPI 可访问性树操作 Linux 图形界面应用（无需视觉/OCR）。枚举桌面应用、读取控件树（按钮/文本框/菜单）、点击按钮、输入文字、激活窗口。适用于 xrdp/Xorg 会话中的 Electron 等 GUI 应用。
 ---
 
 # GUI App Operator — 无头操作图形界面
@@ -8,7 +8,7 @@ description: 通过 AT-SPI 可访问性树操作 Linux 图形界面应用（无�
 ## 适用场景
 - 用户在 xrdp/Xorg 远程桌面（DISPLAY=:10）能看到 GUI 应用窗口，但 agent 在无头 shell 需要**读取并点击**界面控件
 - 不依赖视觉/OCR：通过 AT-SPI 可访问性树读控件
-- 已验证：ZCode (Electron) 界面完整可读可点
+- 已验证：Electron 类应用（如 ZCode）界面完整可读可点
 
 ## 前置条件
 - 系统包：`python3-gi`、`gir1.2-atspi-2.0`、`at-spi2-core`（均已装）
