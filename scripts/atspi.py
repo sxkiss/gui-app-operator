@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python33
 """AT-SPI 可访问性树工具：列应用 / 读树 / 点击 / 输入。用法见下。"""
 import sys, os, subprocess
 

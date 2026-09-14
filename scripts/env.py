@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/python33
 """提取用户图形会话的 DISPLAY/XAUTHORITY/DBUS 环境变量并打印（供 shell source 或脚本用）。"""
 import os, subprocess, re, glob
 
