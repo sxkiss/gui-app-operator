@@ -37,6 +37,7 @@ def walk(n, depth=0, max_depth=8, only_named=False, out=None):
         except: pass
 
 def find(n, label, role=None):
+    """模糊匹配：label 是子串即命中；role 可选过滤。返回所有匹配节点。"""
     hits = []
     def rec(node):
         try: cnt = node.get_child_count()
@@ -44,7 +45,10 @@ def find(n, label, role=None):
         for j in range(cnt):
             try:
                 c = node.get_child_at_index(j)
-                if c.get_name() == label and (role is None or c.get_role_name() == role):
+                nm = c.get_name() or ""
+                match_name = label.lower() in nm.lower()
+                match_role = role is None or c.get_role_name() == role
+                if match_name and match_role:
                     hits.append(c)
                 rec(c)
             except: pass
@@ -70,21 +74,57 @@ def main():
         app = find_app(sys.argv[2])
         role = sys.argv[4] if len(sys.argv) > 4 else None
         hits = find(app, sys.argv[3], role)
-        if hits:
-            hits[0].get_action().do_action(0)
-            print(f"已点击: {sys.argv[3]}")
-        else:
+        if not hits:
             print(f"未找到: {sys.argv[3]}")
+        elif len(hits) == 1:
+            hits[0].get_action().do_action(0)
+            print(f"已点击: {hits[0].get_name()[:60]}")
+        else:
+            # 多命中：尝试用第5参数指定序号（1-based），否则列出候选
+            idx = int(sys.argv[5]) - 1 if len(sys.argv) > 5 and sys.argv[5].isdigit() else None
+            if idx is not None and 0 <= idx < len(hits):
+                hits[idx].get_action().do_action(0)
+                print(f"已点击[{idx+1}]: {hits[idx].get_name()[:60]}")
+            else:
+                print(f"命中{len(hits)}个，未自动点击。用法: click <app> <label> [role] [index]")
+                for i, h in enumerate(hits, 1):
+                    print(f"  [{i}] {h.get_name()[:80]}")
     elif cmd == "type":
+        import time
         app = find_app(sys.argv[2])
         hits = find(app, sys.argv[3])
         if hits:
-            # 尝试 setTextContents（若支持）
+            widget = hits[0]
+            text = sys.argv[4]
+            # 方法1: 尝试 insert_text（适用于支持 AT-SPI EditableText 的控件）
             try:
-                hits[0].query_text().set_text_contents(0, len(sys.argv[4]), sys.argv[4])
-                print(f"已输入: {sys.argv[4]}")
-            except:
-                print("该控件不支持直接输入，需用 xdotool type")
+                widget.insert_text(0, text, 0)
+                print(f"已通过 insert_text 输入: {text}")
+            except Exception:
+                pass
+            else:
+                if widget.get_character_count() > 0:
+                    return
+            # 方法2: 键盘事件逐字符输入（兼容所有可聚焦控件）
+            try:
+                # 先聚焦
+                widget.get_component_iface().grab_focus()
+                time.sleep(0.1)
+                # 全选删除旧内容
+                Atspi.generate_keyboard_event(0xffe3, None, Atspi.KeySynthType.PRESS)
+                Atspi.generate_keyboard_event(0x61, None, Atspi.KeySynthType.PRESS)
+                Atspi.generate_keyboard_event(0x61, None, Atspi.KeySynthType.RELEASE)
+                Atspi.generate_keyboard_event(0xffe3, None, Atspi.KeySynthType.RELEASE)
+                time.sleep(0.2)
+                # 逐字符输入
+                for ch in text:
+                    Atspi.generate_keyboard_event(ord(ch), None, Atspi.KeySynthType.PRESS)
+                    time.sleep(0.05)
+                    Atspi.generate_keyboard_event(ord(ch), None, Atspi.KeySynthType.RELEASE)
+                    time.sleep(0.05)
+                print(f"已通过键盘事件输入: {text}")
+            except Exception as e:
+                print(f"输入失败: {e}")
         else:
             print(f"未找到: {sys.argv[3]}")
     elif cmd == "listall":
