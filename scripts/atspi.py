@@ -11,7 +11,45 @@ def load_env():
             k, v = line[7:].split("=", 1)
             os.environ[k] = v
 
+def x_connectable(display=None):
+    """探测 X 显示是否可连接（unix socket 握手）。返回 True/False。"""
+    import socket
+    d = display or os.environ.get("DISPLAY", ":0")
+    if d.startswith(":"):
+        num = d.split(":", 1)[1].split(".", 1)[0]
+        path = f"/tmp/.X11-unix/X{num}"
+    elif d.startswith("unix:"):
+        path = d.split(":", 2)[2]
+    else:
+        return False
+    try:
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.settimeout(2)
+        s.connect(path)
+        s.sendall(b"\x6c\x00\x0b\x00\x00\x00\x00\x00\x00\x00\x00\x00")  # 握手: 协议 11.0
+        data = s.recv(8)
+        s.close()
+        return len(data) >= 8
+    except Exception:
+        return False
+
+def _ensure_x_connection():
+    """确保能连上 X：带 XAUTHORITY 失败时自动降级为无认证重试。
+    适用场景：Xvfb / Xephyr 等无 -auth 的虚拟显示，auth 文件反而导致拒绝。"""
+    if x_connectable():
+        return
+    # 尝试去掉 XAUTHORITY 再连
+    saved = os.environ.pop("XAUTHORITY", None)
+    if x_connectable():
+        print("[env] X 连接需无认证访问，已自动忽略 XAUTHORITY", file=sys.stderr)
+        return
+    if saved is not None:
+        os.environ["XAUTHORITY"] = saved
+    # 最后尝试裸 DISPLAY（无 XDG_RUNTIME_DIR 干扰）
+    print(f"[env] 警告: X 显示 {os.environ.get('DISPLAY')} 连接失败，AT-SPI 可能不可用", file=sys.stderr)
+
 load_env()
+_ensure_x_connection()
 import gi
 gi.require_version("Atspi", "2.0")
 from gi.repository import Atspi

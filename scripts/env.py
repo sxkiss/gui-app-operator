@@ -1,4 +1,4 @@
-#!/usr/bin/python33
+#!/usr/bin/python3
 """提取用户图形会话的 DISPLAY/XAUTHORITY/DBUS 环境变量并打印（供 shell source 或脚本用）。"""
 import os, subprocess, re, glob
 
@@ -6,15 +6,24 @@ def run(cmd):
     try: return subprocess.run(cmd, shell=True, capture_output=True, text=True).stdout.strip()
     except: return ""
 
-# DISPLAY: 从 xfce4-session 或 Xorg 环境
+# DISPLAY: 从 xfce4-session / Xorg / Xvfb 环境
 display = ""
-for pid in run("pgrep -x xfce4-session").split() or run("pgrep -x Xorg").split():
+for pid in run("pgrep -x xfce4-session").split() or run("pgrep -x Xorg").split() or run("pgrep -x Xvfb").split():
     try:
         env = open(f"/proc/{pid}/environ", "rb").read().decode("utf-8", "ignore")
         for line in env.split("\0"):
             if line.startswith("DISPLAY="): display = line.split("=",1)[1]; break
     except: pass
     if display: break
+# Xvfb 通常无 DISPLAY 环境变量，但进程 cmdline 有 -screen 参数；从 /tmp/.X11-unix 推断活动显示
+if not display:
+    import glob
+    socks = glob.glob("/tmp/.X11-unix/X*")
+    if socks:
+        # 按数字升序取最小（:10 优先于 :1024/:1025 等 gdm 会话号）
+        nums = sorted(int(p.rsplit("X", 1)[1]) for p in socks if p.rsplit("X", 1)[1].isdigit())
+        if nums:
+            display = ":" + str(nums[0])
 if not display: display = ":0"
 
 # 2. XAUTHORITY: 从 Xorg cmdline -auth 解析
