@@ -206,6 +206,38 @@ def close_window_keyboard(app):
     Atspi.generate_keyboard_event(0xffe9, None, Atspi.KeySynthType.RELEASE)
     print("已发送 Alt+F4")
 
+def _xdotool_windows(name):
+    """用 xdotool 按窗口标题查窗口 ID 列表（大小写敏感子串匹配）。失败返回 []。"""
+    try:
+        out = subprocess.run(["xdotool", "search", "--name", name],
+                             capture_output=True, text=True, timeout=5).stdout
+        return [l.strip() for l in out.splitlines() if l.strip()]
+    except Exception:
+        return []
+
+def _wait_closed(app_name, timeout=5):
+    """轮询 xdotool 确认窗口已消失（关闭成功）。xdotool 不可用时视为成功。"""
+    import time
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if not _xdotool_windows(app_name):
+            return True
+        time.sleep(0.5)
+    return False
+
+def close_window_via_xdotool(app):
+    """兜底：xdotool windowclose 发送 WM_DELETE 关闭请求。返回 True 已发送。"""
+    name = app.get_name()
+    if not name:
+        return False
+    wins = _xdotool_windows(name)
+    if not wins:
+        return False
+    for w in wins:
+        subprocess.run(["xdotool", "windowclose", w], capture_output=True, timeout=5)
+    print(f"已通过 xdotool 发送关闭请求({len(wins)}个窗口)")
+    return True
+
 def find_menu_by_label(node, label):
     """在节点树下找含 label 字符串的 menu 节点。"""
     def rec(n):
@@ -281,14 +313,17 @@ def main():
                 print(f"  [{i}] {nm!r} {pos}")
             print("如需强制关闭请用: close <app> --all")
             return
-        # 优先菜单关闭，其次按钮，最后 Alt+F4
-        if close_window_via_menu(app):
-            pass
-        elif close_window_via_button(app):
-            pass
+        # 链式关闭：菜单 → 按钮 → Alt+F4 → xdotool，每步后验证窗口是否真消失
+        app_name = app.get_name()
+        for step, fn in (("菜单", close_window_via_menu),
+                         ("按钮", close_window_via_button),
+                         ("Alt+F4", close_window_keyboard),
+                         ("xdotool", close_window_via_xdotool)):
+            if fn(app) and _wait_closed(app_name):
+                print(f"已关闭: {app_name}（方式: {step}）")
+                break
         else:
-            close_window_keyboard(app)
-        print(f"已关闭: {app.get_name()}")
+            print(f"警告: 所有关闭方式均未生效，{app_name} 窗口可能仍存在")
     elif cmd == "type":
         import time
         app = find_app(sys.argv[2])
