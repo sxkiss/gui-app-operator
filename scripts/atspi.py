@@ -55,8 +55,28 @@ def find(n, label, role=None):
     rec(n)
     return hits
 
-def find_window(app, index=None):
-    """找应用的窗口(frame)节点，index=None返回第一个，>=0指定第N个（0-based）。"""
+def window_visible(window):
+    """判断窗口是否在当前显示上：坐标合理（非极端负值）且尺寸正常。
+
+    不依赖屏幕尺寸查询（AT-SPI desktop 组件接口可能阻塞）：
+    - 隐藏/最小化窗口通常 extents 为 (x=-1000,y=-1000,w=5,h=5) 或 (x=-99,y=-99,w=1,h=1)
+    - 正常窗口 x/y >= 0（或小负数，如标题栏外扩），尺寸 >= 10
+    """
+    try:
+        comp = window.get_component_iface()
+        ext = comp.get_extents(Atspi.CoordType.SCREEN)
+    except Exception:
+        return False
+    if ext.width < 10 or ext.height < 10:
+        return False
+    # 极端负坐标 = 不在当前显示
+    if ext.x <= -50 or ext.y <= -50:
+        return False
+    return True
+
+def find_window(app, index=None, only_visible=True):
+    """找应用的窗口(frame)节点，index=None返回第一个，>=0指定第N个（0-based）。
+    only_visible=True 时只返回当前屏幕可见的窗口。"""
     targets = []
     def collect(node):
         try: cnt = node.get_child_count()
@@ -65,13 +85,16 @@ def find_window(app, index=None):
             try:
                 c = node.get_child_at_index(j)
                 if c.get_role_name() == 'frame':
-                    targets.append(c)
+                    if not only_visible or window_visible(c):
+                        targets.append(c)
                 collect(c)
             except: pass
     collect(app)
     if not targets:
-        # 兜底：找任何窗口节点
-        targets = [n for n, _ in find_all_windows(app)]
+        # 兜底：找任何窗口节点（不过滤可见性）
+        for n, _ in find_all_windows(app):
+            if not only_visible or window_visible(n):
+                targets.append(n)
     if index is None:
         return targets[0] if targets else None
     return targets[index] if 0 <= index < len(targets) else None
@@ -199,10 +222,27 @@ def main():
     elif cmd == "close":
         app = find_app(sys.argv[2])
         if not app: print("未找到应用"); return
-        win_idx = int(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[3].isdigit() else None
-        w = find_window(app, win_idx)
+        force = "--all" in sys.argv
+        win_idx = None
+        for a in sys.argv[3:]:
+            if a.isdigit():
+                win_idx = int(a); break
+        w = find_window(app, win_idx, only_visible=not force)
         if not w:
-            print("未找到窗口"); return
+            # 未找到可见窗口：列出全部窗口供用户确认
+            allw = find_all_windows(app)
+            if not allw:
+                print("未找到任何窗口"); return
+            print(f"未找到当前显示上的窗口（共{len(allw)}个，可能在其他工作区/已最小化）:")
+            for i, (n, nm) in enumerate(allw):
+                try:
+                    ext = n.get_component_iface().get_extents(Atspi.CoordType.SCREEN)
+                    pos = f"({ext.x},{ext.y} {ext.width}x{ext.height})"
+                except Exception:
+                    pos = "(?)"
+                print(f"  [{i}] {nm!r} {pos}")
+            print("如需强制关闭请用: close <app> --all")
+            return
         # 优先菜单关闭，其次按钮，最后 Alt+F4
         if close_window_via_menu(app):
             pass
